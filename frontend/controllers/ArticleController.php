@@ -1,6 +1,9 @@
 <?php
 namespace frontend\controllers;
 
+use common\models\Article;
+use common\models\Page;
+use common\models\User;
 use Yii;
 use yii\filters\auth\HttpBearerAuth;
 use yii\filters\Cors;
@@ -20,10 +23,18 @@ class ArticleController extends BaseAPIController {
                 'class' => Cors::className(),
                 'cors' => [
                     'Origin' => ['http://localhost:9528', 'http://qingtingtui.com'],
-                    'Access-Control-Request-Method' => ['GET', 'HEAD', 'OPTIONS'],
+                    'Access-Control-Request-Method' => ['GET', 'HEAD', 'OPTIONS','POST'],
                 ],
             ],
         ], $behaviors);
+    }
+
+    public function actionUpload() {
+
+//        $request_body = file_get_contents('php://input');
+
+//        var_dump($request_body);die;
+        return ['success' => 0, 'msg' => '', 'data' => array()];
     }
 
     public function actionList() {
@@ -108,5 +119,76 @@ class ArticleController extends BaseAPIController {
   }
 ]';
         return ['success' => 0, 'msg' => '', 'data' => json_decode($a, true)];
+    }
+
+    public function actionAdd() {
+        $request_body = file_get_contents('php://input');
+
+        $article_arr = json_decode($request_body, true);
+
+        if (!$article_arr) {
+            return ['success' => 1, 'msg' => '文章提交错误!'];
+        }
+
+        $title = $article_arr['title'];
+        $uid = Yii::$app->user->id;
+
+        $page_model = new Page();
+        $page_model->setAttributes(['uid' => $uid, 'title' => $title]);
+        $ret_p = $page_model->save();
+
+        if (!$ret_p) {
+            return ['success' => 1, 'msg' => '页面添加错误!'];
+        }
+        $pid = Yii::$app->db->getLastInsertID();
+
+        foreach ($article_arr['article'] as &$art) {
+            $art = array_merge($art, array('pid' => $pid, 'uid' => $uid));
+        }
+
+        $keys = array_keys($article_arr['article'][0]);
+        $ret = Yii::$app->db->createCommand()->batchInsert(Article::tableName(), $keys, $article_arr['article'])->execute();
+
+        return $ret ? ['success' => 0, 'msg' => '', 'data' => $pid] : ['success' => 1, 'msg' => '添加失败!'];
+    }
+
+    public function actionUpdate() {
+        $request_body = file_get_contents('php://input');
+
+        $article_arr = json_decode($request_body, true);
+
+        if (!$article_arr) {
+            return ['success' => 1, 'msg' => '文章提交错误!'];
+        }
+
+        $title = $article_arr['title'];
+        $pid = $article_arr['pid'];
+
+        $uid = Yii::$app->user->id;
+        $page_model = Page::findOne($pid);
+        if (!$page_model) {
+            return ['success' => 1, 'msg' => '未知的pid!'];
+        }
+
+        if ($page_model->uid != $uid) {
+            return ['success' => 1, 'msg' => '没有权限!'];
+        }
+        if ($title != $page_model->title) {
+            $page_model->setAttributes(['title' => $title]);
+            $ret_p = $page_model->update();
+
+            if (!$ret_p) {
+                return ['success' => 1, 'msg' => '页面添加错误!'];
+            }
+        }
+        foreach ($article_arr['article'] as &$art) {
+            $art = array_merge($art, array('pid' => $pid, 'uid' => $uid));
+            unset($art['id']);
+        }
+
+        $ret_del = Yii::$app->db->createCommand()->delete(Article::tableName(), ['pid' => $pid])->execute();
+        $keys = array_keys(current($article_arr['article']));
+        $ret = Yii::$app->db->createCommand()->batchInsert(Article::tableName(), $keys, $article_arr['article'])->execute();
+        return ['success' => 0, 'msg' => '', 'data' => $ret];
     }
 }

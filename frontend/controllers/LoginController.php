@@ -62,8 +62,8 @@ class LoginController extends BaseAPIController
         //}
         $curl = new Curl();
         $c2a_response = $curl->setGetParams([
-            'appid' => 'xxx',
-            'secret' => 'xxx',
+            'appid' => 'wxca623dcd43dc4b8e',
+            'secret' => '6dcab68b871e4b2fbcbd07a5a898eb0e',
             'code' => $code,
             'grant_type' => 'authorization_code'
         ])->get('https://api.weixin.qq.com/sns/oauth2/access_token');
